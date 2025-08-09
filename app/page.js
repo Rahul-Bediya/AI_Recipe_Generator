@@ -1,103 +1,155 @@
-import Image from "next/image";
 
-export default function Home() {
+
+"use client";
+
+import { useState } from "react";
+import { Zap } from "lucide-react";
+import Hero from "./components/Hero";
+import IngredientInput from "./components/IngredientInout";
+import Preferences from "./components/Prefrences";
+import RecipeList from "./components/RecipeList";
+import RecipeModal from "./components/RecipeModal";
+
+export default function HomePage() {
+  const [ingredients, setIngredients] = useState([]);
+  const [preferences, setPreferences] = useState([]);
+  const [recipes, setRecipes] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedRecipe, setSelectedRecipe] = useState(null);
+
+  const generateRecipes = async () => {
+    if (ingredients.length === 0) {
+      alert("Please add at least one ingredient.");
+      return;
+    }
+
+    setLoading(true);
+    setRecipes([]);
+
+    try {
+const prompt = `You are a professional chef AI.
+Based on these ingredients: ${ingredients.join(", ")}
+And these preferences: ${preferences.length ? preferences.join(", ") : "none"}
+Generate 3 unique recipes in valid JSON format.
+Each recipe must have:
+- title (string)
+- description (string)
+- ingredients (array of strings)
+- instructions (array of strings)
+- cookTime (number of minutes, integer)
+- servings (number of people, integer)
+- nutrition (object with calories, protein, carbs, fat, all as numbers or strings with units)
+
+Only return valid JSON, no extra text.`;
+
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "llama3-70b-8192",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.7,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Groq API Error: ${errorText}`);
+      }
+
+      const data = await res.json();
+      const rawContent = data.choices?.[0]?.message?.content?.trim();
+
+      let parsedRecipes;
+      try {
+        parsedRecipes = JSON.parse(rawContent);
+      } catch (err) {
+        console.error("JSON parse error:", err, "Raw output:", rawContent);
+        throw new Error("AI returned invalid JSON. Please try again.");
+      }
+
+      if (Array.isArray(parsedRecipes) && parsedRecipes.length > 0) {
+        setRecipes(parsedRecipes);
+      } else {
+        alert("No recipes generated.");
+      }
+    } catch (err) {
+      alert(err.message || "Error generating recipes");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.js
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div>
+      <Hero />
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+      <div className="container mx-auto px-2 sm:px-4 py-8 sm:py-12 space-y-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+          {/* Left Column - Input */}
+          <div className="space-y-6 sm:ml-0 lg:ml-12">
+            <IngredientInput
+              ingredients={ingredients}
+              setIngredients={setIngredients}
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            <Preferences
+              preferences={preferences}
+              setPreferences={setPreferences}
+            />
+          </div>
+
+          {/* Right Column - Generation */}
+          <div className="lg:sticky lg:top-8 space-y-6 sm:mr-0 lg:mr-12">
+            <div className="bg-gradient-to-r from-orange-400 to-green-400 text-white rounded-xl p-4 sm:p-6 shadow shadow-xl shadow-gray-800/20 w-full">
+              <div className="flex flex-col items-center text-center">
+                <h3 className="text-3xl font-bold">AI Recipe Generator</h3>
+                <p className="mt-2 font-semibold text-sm opacity-90">
+                  Let AI create amazing recipes based on your ingredients and preferences.
+                </p>
+                <div className="mt-4 flex gap-2 justify-center">
+                  <button
+                    onClick={generateRecipes}
+                    disabled={loading}
+                    className="rounded-md px-4 py-2 bg-white/20 hover:bg-white/30 flex items-center gap-2"
+                  >
+                    <Zap className="w-5 h-5" />
+                    {loading ? "Generating..." : "Generate Recipes"}
+                  </button>
+                </div>
+                <p className="mt-3 text-xs opacity-90">
+                  Using {ingredients.length} ingredient(s): {ingredients.join(", ")}
+                </p>
+              </div>
+            </div>
+
+            {/* Show recipes only after Generate is clicked */}
+            {recipes.length > 0 && (
+              <div className="rounded-xl p-4 shadow shadow-xl shadow-gray-800/20">
+                <h4 className="font-semibold">Your Personalized Recipes</h4>
+                <RecipeList
+                  recipes={recipes}
+                  onSelect={(r) => setSelectedRecipe(r)}
+                  className="flex flex-col"
+                />
+              </div>
+            )}
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </div>
+
+      {selectedRecipe && (
+        <RecipeModal
+          recipe={selectedRecipe}
+          onClose={() => setSelectedRecipe(null)}
+        />
+      )}
     </div>
   );
 }
+
